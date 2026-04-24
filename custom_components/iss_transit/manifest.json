@@ -1,0 +1,12 @@
+{
+  "domain": "iss_transit",
+  "name": "ISS Transit Finder",
+  "codeowners": ["@jerrymedeiros"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/jerrymedeiros/iss_transit",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "requirements": ["skyfield>=1.48", "sgp4>=2.20"],
+  "version": "1.0.0"
+}
