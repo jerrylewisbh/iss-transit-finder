@@ -1,82 +1,90 @@
 from skyfield.api import load, wgs84
 from datetime import timedelta
 import logging
-import numpy as np
 
 _LOGGER = logging.getLogger(__name__)
 
 def calculate_transits(lat, lon, elevation):
+    """Calculate the next real ISS transits for the Sun and Moon (NumPy-Free)."""
     ts = load.timescale()
-    eph = load('de421.bsp')
-    sun, moon, earth = eph['sun'], eph['moon'], eph['earth']
     
+    # Load required data
     try:
+        eph = load('de421.bsp')
+        sun, moon, earth = eph['sun'], eph['moon'], eph['earth']
+        
         stations_url = 'https://celestrak.org/NORAD/elements/stations.txt'
         satellites = load.tle_file(stations_url)
         iss = {s.name: s for s in satellites}['ISS (ZARYA)']
     except Exception as e:
-        _LOGGER.error("Failed to fetch TLE: %s", e)
+        _LOGGER.error("Failed to load astronomical data: %s", e)
         return {}
 
     observer_pos = wgs84.latlon(lat, lon, elevation_m=elevation)
     observer = earth + observer_pos
     
+    # Search window: 21 days
     t0 = ts.now()
     t1 = ts.from_datetime(t0.utc_datetime() + timedelta(days=21))
 
     def find_next(target):
-        step_days = 10.0 / 86400.0 
-        t_arr = ts.tt_jd(np.arange(t0.tt, t1.tt, step_days))
+        # COARSE SEARCH: Step every 10 seconds.
+        # Done via a standard Python loop to avoid NumPy segfaults.
+        current_t = t0
+        step_days = 10.0 / 86400.0  # 10 seconds
         
-        astrometric_iss = (iss - observer_pos).at(t_arr)
-        alt, _, _ = astrometric_iss.altaz()
+        found_coarse = None
         
-        visible_idx = np.where(alt.degrees > 0)[0]
-        if len(visible_idx) == 0: return None
+        while current_t.tt < t1.tt:
+            # 1. Check if ISS is visible (altitude > 0)
+            astrometric_iss = (iss - observer_pos).at(current_t)
+            alt, _, _ = astrometric_iss.altaz()
             
-        t_visible = t_arr[visible_idx]
-        astrometric_iss_vis = astrometric_iss[visible_idx]
-        astrometric_target_vis = observer.at(t_visible).observe(target).apparent()
-        separations = astrometric_iss_vis.separation_from(astrometric_target_vis).degrees
+            if alt.degrees > 0:
+                # 2. Check separation
+                astrometric_target = observer.at(current_t).observe(target).apparent()
+                sep = astrometric_iss.separation_from(astrometric_target).degrees
+                
+                if sep < 5.0:
+                    found_coarse = current_t
+                    break # Break on first close pass
+            
+            # Step forward
+            current_t = ts.tt_jd(current_t.tt + step_days)
+            
+        if not found_coarse:
+            return None
+            
+        # FINE SEARCH: Step every 0.1 seconds around the coarse find
+        fine_start = ts.tt_jd(found_coarse.tt - (30.0 / 86400.0))
+        fine_end = ts.tt_jd(found_coarse.tt + (30.0 / 86400.0))
+        fine_step = 0.1 / 86400.0
         
-        # Find local minima where separation < 5.0
-        # We find indices where separation is less than 5.0
-        close_mask = separations < 5.0
-        close_idx = np.where(close_mask)[0]
-        if len(close_idx) == 0: return None
-
-        # Split into distinct passes (if indices jump by more than a few minutes)
-        # 1 step = 10 seconds. If difference > 6 steps (1 min), it's a new pass.
-        passes = np.split(close_idx, np.where(np.diff(close_idx) > 6)[0] + 1)
+        current_fine = fine_start
+        min_sep = float('inf')
+        best_t = None
         
-        for p_idx in passes:
-            if len(p_idx) == 0: continue
+        while current_fine.tt < fine_end.tt:
+            a_iss = (iss - observer_pos).at(current_fine)
+            a_target = observer.at(current_fine).observe(target).apparent()
+            sep = a_iss.separation_from(a_target).degrees
             
-            # Find the time of minimum separation in this pass
-            pass_seps = separations[p_idx]
-            min_coarse_idx = p_idx[np.argmin(pass_seps)]
-            t_coarse = t_visible[min_coarse_idx]
+            if sep < min_sep:
+                min_sep = sep
+                best_t = current_fine
+                
+            current_fine = ts.tt_jd(current_fine.tt + fine_step)
             
-            # Fine search around this coarse minimum
-            fine_step = 0.1 / 86400.0
-            t_fine = ts.tt_jd(np.arange(t_coarse.tt - (30/86400.0), t_coarse.tt + (30/86400.0), fine_step))
-            
-            astrometric_iss_fine = (iss - observer_pos).at(t_fine)
-            astrometric_target_fine = observer.at(t_fine).observe(target).apparent()
-            fine_separations = astrometric_iss_fine.separation_from(astrometric_target_fine).degrees
-            
-            min_fine_idx = np.argmin(fine_separations)
-            min_sep = fine_separations[min_fine_idx]
-            
-            if min_sep < 0.8:
-                t_event = t_fine[min_fine_idx]
-                final_alt, final_az, _ = astrometric_iss_fine[min_fine_idx].altaz()
-                return {
-                    "time": t_event.utc_iso(),
-                    "separation_degrees": round(float(min_sep), 4),
-                    "altitude": round(float(final_alt.degrees), 1),
-                    "azimuth": round(float(final_az.degrees), 1)
-                }
+        # Evaluate final result
+        if min_sep < 0.8 and best_t is not None:
+            final_a_iss = (iss - observer_pos).at(best_t)
+            final_alt, final_az, _ = final_a_iss.altaz()
+            return {
+                "time": best_t.utc_iso(),
+                "separation_degrees": round(float(min_sep), 4),
+                "altitude": round(float(final_alt.degrees), 1),
+                "azimuth": round(float(final_az.degrees), 1)
+            }
             
         return None
 
