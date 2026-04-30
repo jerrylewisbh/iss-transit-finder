@@ -1,6 +1,8 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.components.sensor import SensorDeviceClass
+import datetime
 from .const import DOMAIN, CONF_NAME
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -23,8 +25,8 @@ class ISSTransitSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"iss_transit_{entry_id}_{target}"
         self._attr_icon = "mdi:weather-sunny" if target == "sun" else "mdi:moon-waning-crescent"
         
-        # Tell Home Assistant this is a timestamp sensor!
-        self._attr_device_class = "timestamp"
+        # Use the official enum for device class
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property
     def device_info(self):
@@ -40,8 +42,13 @@ class ISSTransitSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data and self.target in self.coordinator.data:
             data = self.coordinator.data[self.target]
             if data and data.get("time"):
-                return data.get("time")
-        return None  # For timestamp sensors, "None" is the correct way to show it's unknown/unavailable
+                # HA Timestamp class absolutely requires a native Python datetime object,
+                # NOT a string, when returning native_value.
+                try:
+                    return datetime.datetime.fromisoformat(data.get("time"))
+                except ValueError:
+                    return None
+        return None
 
     @property
     def extra_state_attributes(self):
