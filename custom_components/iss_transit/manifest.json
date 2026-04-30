@@ -4,9 +4,9 @@
   "codeowners": ["@jerrymedeiros"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/jerrymedeiros/iss_transit",
+  "documentation": "https://github.com/jerrylewisbh/iss-transit-finder",
   "integration_type": "hub",
   "iot_class": "calculated",
   "requirements": ["skyfield>=1.48", "sgp4>=2.20"],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
