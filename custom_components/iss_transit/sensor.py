@@ -19,14 +19,15 @@ class ISSTransitSensor(CoordinatorEntity, SensorEntity):
         self._site_name = site_name
         self._entry_id = entry_id
         
-        # e.g., "Cabin Next ISS Sun Transit"
         self._attr_name = f"{site_name} Next ISS {target.capitalize()} Transit"
         self._attr_unique_id = f"iss_transit_{entry_id}_{target}"
         self._attr_icon = "mdi:weather-sunny" if target == "sun" else "mdi:moon-waning-crescent"
+        
+        # Tell Home Assistant this is a timestamp sensor!
+        self._attr_device_class = "timestamp"
 
     @property
     def device_info(self):
-        """Return device information to group sensors together."""
         return {
             "identifiers": {(DOMAIN, self._entry_id)},
             "name": f"ISS Transit Finder ({self._site_name})",
@@ -38,11 +39,18 @@ class ISSTransitSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         if self.coordinator.data and self.target in self.coordinator.data:
             data = self.coordinator.data[self.target]
-            return data.get("time") if data else "No transits in 21 days"
-        return "Unknown"
+            if data and data.get("time"):
+                return data.get("time")
+        return None  # For timestamp sensors, "None" is the correct way to show it's unknown/unavailable
 
     @property
     def extra_state_attributes(self):
         if self.coordinator.data and self.target in self.coordinator.data:
-            return self.coordinator.data[self.target] or {}
-        return {}
+            data = self.coordinator.data[self.target]
+            if data:
+                return {
+                    "separation_degrees": data.get("separation_degrees"),
+                    "altitude": data.get("altitude"),
+                    "azimuth": data.get("azimuth")
+                }
+        return {"status": "No transits in 21 days"}
