@@ -1,2 +1,5 @@
 DOMAIN = "iss_transit"
+CONF_NAME = "name"
+CONF_LATITUDE = "latitude"
+CONF_LONGITUDE = "longitude"
 CONF_ELEVATION = "elevation"
