@@ -28,4 +28,5 @@ class ISSTransitCoordinator(DataUpdateCoordinator):
                 calculate_transits, lat, lon, elev
             )
         except Exception as err:
+            _LOGGER.error("Error calculating transits: %s", err)
             raise UpdateFailed(f"Error calculating transits: {err}")
