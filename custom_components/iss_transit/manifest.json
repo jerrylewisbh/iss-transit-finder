@@ -5,8 +5,9 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/jerrylewisbh/iss-transit-finder",
+  "issue_tracker": "https://github.com/jerrylewisbh/iss-transit-finder/issues",
   "integration_type": "hub",
   "iot_class": "calculated",
   "requirements": ["ephem>=4.1.5", "urllib3>=1.26.0"],
-  "version": "1.0.9"
+  "version": "1.1.0"
 }
