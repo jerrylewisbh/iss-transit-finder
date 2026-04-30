@@ -21,7 +21,7 @@ A custom integration that calculates International Space Station (ISS) transits 
 
 ## Configuration
 
-You can install this integration multiple times to track transits from different locations (e.g., "Home", "The Cabin", "Photography Spot"). During setup, you will be prompted to provide:
+You can install this integration multiple times to track transits from different locations (e.g., "Home", "Observatory", "Cabin"). During setup, you will be prompted to provide:
 * **Name**: The name of the location.
 * **Latitude & Longitude**: The coordinates for the calculation.
 * **Elevation**: Altitude in meters.
